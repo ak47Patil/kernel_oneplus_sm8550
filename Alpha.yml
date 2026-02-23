@@ -1,0 +1,83 @@
+name: Build Kernel (Android 16) with KSU & AnyKernel3
+
+on:
+  workflow_dispatch: # Trigger manually
+
+env:
+  DEFCONFIG_NAME: vendor/kalama_defconfig
+  DEFCONFIG_PATH: arch/arm64/configs/vendor/kalama_defconfig
+  # AnyKernel3 auto-configuration
+  DEVICE_NAME: aston
+  BLOCK_PATH: /dev/block/bootdevice/by-name/boot
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Kernel Source
+      uses: actions/checkout@v4
+
+    - name: Setup Build Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen policycoreutils minicom bc libc6-dev-i386 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip sed jq
+
+    - name: Download Neutron Clang
+      run: |
+        mkdir -p clang
+        cd clang
+        curl -LO "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman"
+        chmod +x antman
+        ./antman -S
+        cd ..
+
+    - name: Setup KernelSU (KPM) & Force Enable LKM
+      run: |
+        echo "Injecting KernelSU..."
+        curl -ls https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -
+        
+        echo "Forcefully enabling KPM and LKM..."
+        echo "CONFIG_KSU=y" >> ${{ env.DEFCONFIG_PATH }}
+        echo "CONFIG_KSU_ALLOW_UNSUPPORTED_SU_DOMAIN=y" >> ${{ env.DEFCONFIG_PATH }}
+        echo "CONFIG_MODULES=y" >> ${{ env.DEFCONFIG_PATH }}
+        echo "CONFIG_MODULE_UNLOAD=y" >> ${{ env.DEFCONFIG_PATH }}
+        echo "CONFIG_MODVERSIONS=y" >> ${{ env.DEFCONFIG_PATH }}
+
+    - name: Build Kernel
+      run: |
+        export PATH="$(pwd)/clang/bin:$PATH"
+        export ARCH=arm64
+        export SUBARCH=arm64
+        
+        make O=out CC=clang ${{ env.DEFCONFIG_NAME }}
+        
+        make -j$(nproc --all) O=out \
+                          ARCH=arm64 \
+                          CC=clang \
+                          CROSS_COMPILE=aarch64-linux-gnu- \
+                          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+                          LLVM=1 \
+                          LLVM_IAS=1
+
+    - name: Package with AnyKernel3
+      run: |
+        echo "Cloning AnyKernel3 and setting up for OnePlus 12R..."
+        git clone https://github.com/osm0sis/AnyKernel3.git -b master AnyKernel3
+        cd AnyKernel3
+        rm -rf .git README.md
+        
+        # Update AnyKernel3 configurations automatically via sed
+        sed -i 's/kernel.string=.*/kernel.string=Custom Kernel with KSU/g' anykernel.sh
+        sed -i 's/device.name1=.*/device.name1=${{ env.DEVICE_NAME }}/g' anykernel.sh
+        sed -i "s|block=.*|block=${{ env.BLOCK_PATH }};|g" anykernel.sh
+        sed -i 's/is_slot_device=0;/is_slot_device=1;/g' anykernel.sh
+        
+        # Copy Image and create Flashable ZIP
+        cp ../out/arch/arm64/boot/Image ./
+        zip -r9 ../Custom-Kernel-Flashable.zip *
+
+    - name: Upload Flashable Kernel ZIP
+      uses: actions/upload-artifact@v4
+      with:
+        name: Custom-Kernel-Flashable
+        path: Custom-Kernel-Flashable.zip
