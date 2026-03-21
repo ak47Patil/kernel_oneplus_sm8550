@@ -19,30 +19,22 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Brute Force Clean Kconfigs
+      - name: Super Clean Kconfigs
         run: |
           cd kernel_source
-          echo "Force bypassing missing Kconfigs..."
-          
-          # Universal search and destroy for missing sources
-          find . -name "Kconfig*" -exec sed -i '/kernel\/oplus_cpu\/thermal\/Kconfig/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/drivers\/base\/kernelFwUpdate\/Kconfig/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/drivers\/nfc\/oplus_nfc\/Kconfig/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/drivers\/misc\/tri_state_key\/Kconfig/d' {} +
-          
-          # Jar azunahi kahi oplus missing asle tar te bypass karne
-          find . -name "Kconfig*" | xargs -I {} sh -c '
-            grep "source " "{}" | sed "s/.*source \"//;s/\".*// " | while read line; do
-              if [[ "$line" != \$* ]] && [ ! -f "$line" ] && [ ! -z "$line" ]; then
-                echo "Final Bypass: $line"
-                sed -i "s|source \"$line\"|# source \"$line\"|g" "{}"
-              fi
-            done
-          '
+          echo "Bypassing all missing Oplus references..."
+          # Jithe jithe missing Oplus files aahet, tya lines direct delete karne
+          find . -name "Kconfig*" -exec sed -i '/oplus_cpu/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/oplus_nfc/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/tri_state_key/d' {} +
+          # Azun kahi missing asle tar te bypass karne
+          find . -name "Kconfig*" -exec sed -i 's/source ".*missing.*"/# source/g' {} +
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
+          # SM8550 Defconfig
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
