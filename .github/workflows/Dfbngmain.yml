@@ -19,27 +19,30 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Deep Clean Missing Kconfigs
+      - name: Brute Force Clean Kconfigs
         run: |
           cd kernel_source
-          echo "Scanning all Kconfigs for missing files..."
-          # Hi script sagle 'source' lines check karel, jar file nasel tar comment karel
+          echo "Force bypassing missing Kconfigs..."
+          
+          # Universal search and destroy for missing sources
+          find . -name "Kconfig*" -exec sed -i '/kernel\/oplus_cpu\/thermal\/Kconfig/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/drivers\/base\/kernelFwUpdate\/Kconfig/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/drivers\/nfc\/oplus_nfc\/Kconfig/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/drivers\/misc\/tri_state_key\/Kconfig/d' {} +
+          
+          # Jar azunahi kahi oplus missing asle tar te bypass karne
           find . -name "Kconfig*" | xargs -I {} sh -c '
             grep "source " "{}" | sed "s/.*source \"//;s/\".*// " | while read line; do
-              # Check if the path starts with $ or is a valid file
               if [[ "$line" != \$* ]] && [ ! -f "$line" ] && [ ! -z "$line" ]; then
-                echo "Bypassing missing file: $line in {}"
+                echo "Final Bypass: $line"
                 sed -i "s|source \"$line\"|# source \"$line\"|g" "{}"
               fi
             done
           '
-          # Specific hard bypass for kernelFwUpdate
-          find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} + || true
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
-          # SM8550 Defconfig
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
