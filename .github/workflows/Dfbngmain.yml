@@ -22,36 +22,34 @@ jobs:
       - name: Deep Scrub Missing References
         run: |
           cd kernel_source
-          echo "Starting deep scrub of missing files..."
-          # Find all Kconfig files and check every 'source' line
           find . -name "Kconfig*" | while read -r kfile; do
-            # Extract paths from source "path/to/file" lines
             grep "source " "$kfile" | cut -d'"' -f2 | while read -r spath; do
-              # If the path doesn't exist and isn't a variable ($), delete the line
               if [[ "$spath" != \$* ]] && [ ! -f "$spath" ] && [ ! -d "$spath" ]; then
-                echo "Removing broken reference: $spath from $kfile"
                 sed -i "\|source \"$spath\"|d" "$kfile"
               fi
             done
           done
-          echo "Scrubbing complete."
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
-          # Detect SM8550 defconfig
-          DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
-          [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
+          # Find the actual defconfig file
+          # OnePlus often puts it in arch/arm64/configs/vendor/
+          REAL_DEFCONFIG=$(find arch/arm64/configs/ -name "*defconfig" | grep -E "8550|kalama" | head -n 1)
+          echo "Found defconfig: $REAL_DEFCONFIG"
+          
+          # Extract just the filename for the 'make' command
+          DEF_NAME=$(basename "$REAL_DEFCONFIG")
           
           # Inject APatch/Kpatch requirements
-          echo "CONFIG_KPROBES=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_KPROBE_EVENTS=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_KPATCH=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG_FILE"
-          echo "CONFIG_DYNAMIC_FTRACE=y" >> "$DEFCONFIG_FILE"
+          echo "CONFIG_KPROBES=y" >> "$REAL_DEFCONFIG"
+          echo "CONFIG_KPROBE_EVENTS=y" >> "$REAL_DEFCONFIG"
+          echo "CONFIG_KPATCH=y" >> "$REAL_DEFCONFIG"
+          echo "CONFIG_KALLSYMS_ALL=y" >> "$REAL_DEFCONFIG"
+          echo "CONFIG_DYNAMIC_FTRACE=y" >> "$REAL_DEFCONFIG"
 
-          # Run make
-          make O=out ARCH=arm64 $(basename "$DEFCONFIG_FILE")
+          # Start Build
+          make O=out ARCH=arm64 "$DEF_NAME"
           make O=out ARCH=arm64 -j$(nproc) \
             CC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
@@ -63,4 +61,3 @@ jobs:
         with:
           name: OnePlus12R-Official-Kernel
           path: kernel_source/out/arch/arm64/boot/Image.gz
-          
