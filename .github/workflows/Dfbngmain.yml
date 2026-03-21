@@ -19,26 +19,25 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Super Clean Kconfigs
+      - name: Nuclear Clean Kconfigs
         run: |
           cd kernel_source
-          echo "Bypassing all missing Oplus references..."
-          # Jithe jithe missing Oplus files aahet, tya lines direct delete karne
-          find . -name "Kconfig*" -exec sed -i '/oplus_cpu/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/oplus_nfc/d' {} +
+          echo "Deep cleaning sagle oplus references..."
+          # Purn source madhlya Kconfig files madhun 'oplus' aslelya lines kaadhne
+          find . -name "Kconfig*" -exec sed -i '/oplus/d' {} +
           find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} +
           find . -name "Kconfig*" -exec sed -i '/tri_state_key/d' {} +
-          # Azun kahi missing asle tar te bypass karne
-          find . -name "Kconfig*" -exec sed -i 's/source ".*missing.*"/# source/g' {} +
+          
+          echo "Cleaning finished."
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
-          # SM8550 Defconfig
+          # SM8550 Defconfig शोधणे
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
-          # Kpatch Next (APatch) Configs
+          # Kpatch Next (APatch) Configs ऍड करणे
           echo "CONFIG_KPROBES=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPROBE_EVENTS=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPATCH=y" >> "$DEFCONFIG_FILE"
@@ -47,6 +46,7 @@ jobs:
 
           make O=out ARCH=arm64 $(basename "$DEFCONFIG_FILE")
           
+          # System Clang वापरून Compilation सुरू करणे
           make O=out ARCH=arm64 -j$(nproc) \
             CC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
