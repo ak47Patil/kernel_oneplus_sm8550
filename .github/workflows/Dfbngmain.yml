@@ -19,15 +19,21 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Nuclear Clean Kconfigs
+      - name: Deep Clean Missing Files
         run: |
           cd kernel_source
-          echo "Deep cleaning sagle oplus references..."
-          # Purn source madhlya Kconfig files madhun 'oplus' aslelya lines kaadhne
-          find . -name "Kconfig*" -exec sed -i '/oplus/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/tri_state_key/d' {} +
-          
+          echo "Deep cleaning sagle missing references..."
+          # Hi script purn source madhlya Kconfig lines check karel
+          # Jar source madhli file physically exit nasel, tar ti line udbavun takel
+          find . -name "Kconfig*" | xargs -I {} sh -c '
+            grep "source " "{}" | sed "s/.*source \"//;s/\".*// " | while read line; do
+              # Skip if line contains variables like $
+              if [[ "$line" != \$* ]] && [ ! -f "$line" ] && [ ! -z "$line" ]; then
+                echo "Bypassing: $line"
+                sed -i "\|source \"$line\"|d" "{}"
+              fi
+            done
+          '
           echo "Cleaning finished."
 
       - name: Build Kernel Process
@@ -37,7 +43,7 @@ jobs:
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
-          # Kpatch Next (APatch) Configs ऍड करणे
+          # Kpatch Next (APatch) Configs
           echo "CONFIG_KPROBES=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPROBE_EVENTS=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPATCH=y" >> "$DEFCONFIG_FILE"
@@ -46,7 +52,7 @@ jobs:
 
           make O=out ARCH=arm64 $(basename "$DEFCONFIG_FILE")
           
-          # System Clang वापरून Compilation सुरू करणे
+          # Stable Compilation
           make O=out ARCH=arm64 -j$(nproc) \
             CC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
