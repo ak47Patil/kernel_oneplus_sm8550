@@ -19,25 +19,27 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Clean Missing Oplus References
+      - name: Deep Clean Missing Kconfigs
         run: |
           cd kernel_source
-          echo "Cleaning all missing Oplus Kconfig references..."
-          # Sagle oplus missing folders bypass karne
+          echo "Scanning all Kconfigs for missing files..."
+          # Hi script sagle 'source' lines check karel, jar file nasel tar comment karel
           find . -name "Kconfig*" | xargs -I {} sh -c '
             grep "source " "{}" | sed "s/.*source \"//;s/\".*// " | while read line; do
-              if [ ! -f "$line" ] && [ ! -z "$line" ] && echo "$line" | grep -q "oplus"; then
-                echo "Removing missing Oplus reference: $line"
+              # Check if the path starts with $ or is a valid file
+              if [[ "$line" != \$* ]] && [ ! -f "$line" ] && [ ! -z "$line" ]; then
+                echo "Bypassing missing file: $line in {}"
                 sed -i "s|source \"$line\"|# source \"$line\"|g" "{}"
               fi
             done
           '
-          # Specific fix for thermal and nfc if missed by script
-          sed -i '/kernel\/oplus_cpu\/thermal\/Kconfig/d' init/Kconfig || true
+          # Specific hard bypass for kernelFwUpdate
+          find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} + || true
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
+          # SM8550 Defconfig
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
