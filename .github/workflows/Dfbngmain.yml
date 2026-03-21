@@ -19,47 +19,43 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Deep Clean Missing Files
+      - name: Cleanup Missing Kconfig References
         run: |
           cd kernel_source
-          echo "Deep cleaning sagle missing references..."
-          # Hi script purn source madhlya Kconfig lines check karel
-          # Jar source madhli file physically exit nasel, tar ti line udbavun takel
-          find . -name "Kconfig*" | xargs -I {} sh -c '
-            grep "source " "{}" | sed "s/.*source \"//;s/\".*// " | while read line; do
-              # Skip if line contains variables like $
-              if [[ "$line" != \$* ]] && [ ! -f "$line" ] && [ ! -z "$line" ]; then
-                echo "Bypassing: $line"
-                sed -i "\|source \"$line\"|d" "{}"
-              fi
-            done
-          '
-          echo "Cleaning finished."
+          # Direct removal of problematic oplus and misc directories from Kconfigs
+          find . -name "Kconfig*" -exec sed -i '/oplus_cpu/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/oplus_nfc/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/oplus_locking/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/tri_state_key/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/aw8697_haptic/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/oplus_display/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/oplus_sensor/d' {} +
+          find . -name "Kconfig*" -exec sed -i '/oplus_sched/d' {} +
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
-          # SM8550 Defconfig शोधणे
+          # Find Defconfig
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
-          # Kpatch Next (APatch) Configs
+          # Inject Kpatch/APatch Configs
           echo "CONFIG_KPROBES=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPROBE_EVENTS=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPATCH=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_DYNAMIC_FTRACE=y" >> "$DEFCONFIG_FILE"
 
+          # Configure and Build
           make O=out ARCH=arm64 $(basename "$DEFCONFIG_FILE")
-          
-          # Stable Compilation
           make O=out ARCH=arm64 -j$(nproc) \
             CC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             LLVM=1 LLVM_IAS=1
 
-      - name: Upload Kernel Image
+      - name: Upload Kernel Artifact
         uses: actions/upload-artifact@v4
         with:
           name: OnePlus12R-Official-Kernel
