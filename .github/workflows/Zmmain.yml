@@ -1,0 +1,57 @@
+name: Stable Kernel Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Workflow
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm gcc-aarch64-linux-gnu
+
+      - name: Clone Official Source
+        run: |
+          # Official OnePlus SM8550 Kernel Source
+          git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
+
+      - name: Download Clang
+        run: |
+          mkdir clang
+          cd clang
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r487747.tar.gz
+          tar -xf *.tar.gz
+          echo "$(pwd)/bin" >> $GITHUB_PATH
+
+      - name: Build Kernel
+        run: |
+          cd kernel_source
+          # SM8550 Defconfig
+          DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
+          
+          # Kpatch Next (APatch) sathi Configs
+          # Jar file nasel tar find command vapru
+          [ ! -f "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
+          
+          echo "CONFIG_KPROBES=y" >> $DEFCONFIG_FILE
+          echo "CONFIG_KPROBE_EVENTS=y" >> $DEFCONFIG_FILE
+          echo "CONFIG_KPATCH=y" >> $DEFCONFIG_FILE
+          echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG_FILE
+
+          make O=out ARCH=arm64 $(basename $DEFCONFIG_FILE)
+          make O=out ARCH=arm64 -j$(nproc) \
+            CC=clang \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            LLVM=1 LLVM_IAS=1
+
+      - name: Upload Kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnePlus12R-Official-Kernel
+          path: kernel_source/out/arch/arm64/boot/Image.gz
