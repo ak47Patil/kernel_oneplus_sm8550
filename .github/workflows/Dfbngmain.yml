@@ -19,31 +19,38 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/OnePlusOSS/android_kernel_oneplus_sm8550 kernel_source
 
-      - name: Global Cleanup of Missing References
+      - name: Deep Scrub Missing References
         run: |
           cd kernel_source
-          # This command deletes any line containing "oplus" or "haptic" or "tri_state" 
-          # across all Kconfig files to prevent "file not found" errors.
-          find . -name "Kconfig*" -exec sed -i '/oplus/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/haptic/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/tri_state/d' {} +
-          find . -name "Kconfig*" -exec sed -i '/kernelFwUpdate/d' {} +
+          echo "Starting deep scrub of missing files..."
+          # Find all Kconfig files and check every 'source' line
+          find . -name "Kconfig*" | while read -r kfile; do
+            # Extract paths from source "path/to/file" lines
+            grep "source " "$kfile" | cut -d'"' -f2 | while read -r spath; do
+              # If the path doesn't exist and isn't a variable ($), delete the line
+              if [[ "$spath" != \$* ]] && [ ! -f "$spath" ] && [ ! -d "$spath" ]; then
+                echo "Removing broken reference: $spath from $kfile"
+                sed -i "\|source \"$spath\"|d" "$kfile"
+              fi
+            done
+          done
+          echo "Scrubbing complete."
 
       - name: Build Kernel Process
         run: |
           cd kernel_source
-          # Auto-detect SM8550 defconfig
+          # Detect SM8550 defconfig
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
-          # Inject APatch / Kpatch-compatible configs
+          # Inject APatch/Kpatch requirements
           echo "CONFIG_KPROBES=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPROBE_EVENTS=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KPATCH=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_KALLSYMS_ALL=y" >> "$DEFCONFIG_FILE"
           echo "CONFIG_DYNAMIC_FTRACE=y" >> "$DEFCONFIG_FILE"
 
-          # Start Compilation
+          # Run make
           make O=out ARCH=arm64 $(basename "$DEFCONFIG_FILE")
           make O=out ARCH=arm64 -j$(nproc) \
             CC=clang \
