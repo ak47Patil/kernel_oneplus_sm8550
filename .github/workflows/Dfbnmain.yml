@@ -13,7 +13,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm gcc-aarch64-linux-gnu wget
+          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm gcc-aarch64-linux-gnu wget tar
 
       - name: Clone Official Source
         run: |
@@ -23,15 +23,14 @@ jobs:
         run: |
           mkdir clang
           cd clang
-          # GitHub release varun stable clang ghene (r487747)
-          wget https://github.com/ZyCromerZ/Clang/releases/download/17.0.0-20230522/Clang-17.0.0-20230522.tar.gz
+          # Google Official Stable Clang for Android
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r487747c.tar.gz
           tar -xf *.tar.gz
           echo "$(pwd)/bin" >> $GITHUB_PATH
 
       - name: Build Kernel
         run: |
           cd kernel_source
-          # SM8550 Defconfig shodha
           DEFCONFIG_FILE=$(find arch/arm64/configs/ -name "*defconfig" | grep "sm8550" | head -n 1)
           [ -z "$DEFCONFIG_FILE" ] && DEFCONFIG_FILE="arch/arm64/configs/vendor/sm8550_defconfig"
           
