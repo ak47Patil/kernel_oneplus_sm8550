@@ -33,12 +33,17 @@ jobs:
       - name: Build Kernel Process
         run: |
           cd kernel_source
-          # Find the actual defconfig file
-          # OnePlus often puts it in arch/arm64/configs/vendor/
-          REAL_DEFCONFIG=$(find arch/arm64/configs/ -name "*defconfig" | grep -E "8550|kalama" | head -n 1)
-          echo "Found defconfig: $REAL_DEFCONFIG"
+          # Target GKI/Kalama config for SM8550
+          # We check 'vendor' subdirectory first as OnePlus uses it
+          REAL_DEFCONFIG=$(find arch/arm64/configs/ -name "*defconfig" | grep -iE "kalama|8550|gki" | head -n 1)
           
-          # Extract just the filename for the 'make' command
+          if [ -z "$REAL_DEFCONFIG" ]; then
+            echo "Standard search failed. Listing available configs to debug:"
+            ls -R arch/arm64/configs/ | grep "defconfig" | head -n 20
+            exit 1
+          fi
+          
+          echo "Found defconfig: $REAL_DEFCONFIG"
           DEF_NAME=$(basename "$REAL_DEFCONFIG")
           
           # Inject APatch/Kpatch requirements
@@ -46,7 +51,6 @@ jobs:
           echo "CONFIG_KPROBE_EVENTS=y" >> "$REAL_DEFCONFIG"
           echo "CONFIG_KPATCH=y" >> "$REAL_DEFCONFIG"
           echo "CONFIG_KALLSYMS_ALL=y" >> "$REAL_DEFCONFIG"
-          echo "CONFIG_DYNAMIC_FTRACE=y" >> "$REAL_DEFCONFIG"
 
           # Start Build
           make O=out ARCH=arm64 "$DEF_NAME"
@@ -61,3 +65,4 @@ jobs:
         with:
           name: OnePlus12R-Official-Kernel
           path: kernel_source/out/arch/arm64/boot/Image.gz
+          
