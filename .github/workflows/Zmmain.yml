@@ -17,16 +17,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm python3 curl git zip wget
 
-      - name: Integrate KernelSU-Next
+      - name: Integrate KernelSU-Next and KPatch
         run: |
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
-
-      - name: Integrate KPatch-Next
-        run: |
-          git clone --depth=1 https://github.com/tervsea/KPatch-Next.git kpatch_tool
-          cd kpatch_tool
-          bash patch.sh --dir .. --patch
-          cd ..
 
       - name: Build Kernel
         run: |
@@ -48,9 +41,9 @@ jobs:
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
           zip -r9 ../OnePlus12R-AlphaDroid-Kernel.zip *
 
-      - name: Upload Flashable Zip
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Custom-Kernel-OnePlus12R
+          name: OnePlus12R-Kernel-Zip
           path: OnePlus12R-AlphaDroid-Kernel.zip
           
