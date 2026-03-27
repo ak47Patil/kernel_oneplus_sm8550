@@ -17,7 +17,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm python3 curl git zip wget
 
-      - name: Integrate KernelSU-Next and KPatch
+      - name: Integrate KernelSU-Next and Kpatch
         run: |
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
 
@@ -25,7 +25,7 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          make O=out vendor/ace3_defconfig
+          make O=out vendor/gki_defconfig
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
                       CC=clang \
@@ -36,7 +36,11 @@ jobs:
       - name: Package with AnyKernel3
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-          cp out/arch/arm64/boot/Image AnyKernel3/
+          if [ -f out/arch/arm64/boot/Image ]; then
+            cp out/arch/arm64/boot/Image AnyKernel3/
+          else
+            cp out/arch/arm64/boot/Image.gz AnyKernel3/ || cp out/arch/arm64/boot/Image AnyKernel3/
+          fi
           cd AnyKernel3
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
           zip -r9 ../OnePlus12R-AlphaDroid-Kernel.zip *
