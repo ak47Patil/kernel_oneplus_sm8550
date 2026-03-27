@@ -21,13 +21,10 @@ jobs:
         run: |
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
 
-      - name: Integrate KPatch-Next (Manual Clone)
+      - name: Integrate KPatch-Next
         run: |
-          # लिंक फेल होत असल्यामुळे आपण थेट क्लोन करून पॅच करूया
-          git clone https://github.com/tervsea/KPatch-Next.git
-          cd KPatch-Next
-          bash patch.sh --dir .. --patch
-          cd ..
+          # थेट अधिकृत स्क्रिप्ट वापरत आहोत, कोणतीही एक्स्ट्रा स्पेस नाही
+          curl -LSs "https://raw.githubusercontent.com/tervsea/KPatch-Next/main/patch.sh" | bash -s -- --dir . --patch
 
       - name: Build Kernel (OnePlus 12R)
         run: |
@@ -43,7 +40,7 @@ jobs:
 
       - name: Package with AnyKernel3
         run: |
-          git clone https://github.com/osm0sis/AnyKernel3.git
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
           cp out/arch/arm64/boot/Image AnyKernel3/
           cd AnyKernel3
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
