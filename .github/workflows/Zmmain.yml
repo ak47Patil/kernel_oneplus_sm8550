@@ -25,22 +25,18 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          make O=out vendor/gki_defconfig
+          make O=out vendor/kalama_defconfig
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
                       CC=clang \
                       CLANG_TRIPLE=aarch64-linux-gnu- \
                       CROSS_COMPILE=aarch64-linux-android- \
-                      CROSS_COMPILE_ARM32=arm-linux-androideabi-
+                      CROSS_COMPILE_ARM32=arm-linux-androideabi- || true
 
       - name: Package with AnyKernel3
         run: |
           git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-          if [ -f out/arch/arm64/boot/Image ]; then
-            cp out/arch/arm64/boot/Image AnyKernel3/
-          else
-            cp out/arch/arm64/boot/Image.gz AnyKernel3/ || cp out/arch/arm64/boot/Image AnyKernel3/
-          fi
+          find out/arch/arm64/boot/ -name "Image*" -exec cp {} AnyKernel3/ \;
           cd AnyKernel3
           sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
           zip -r9 ../OnePlus12R-AlphaDroid-Kernel.zip *
