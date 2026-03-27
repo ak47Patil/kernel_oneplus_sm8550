@@ -23,9 +23,12 @@ jobs:
 
       - name: Integrate KPatch-Next
         run: |
-          curl -LSs "https://raw.githubusercontent.com/tervsea/KPatch-Next/main/patch.sh" | bash -s -- --dir . --patch
+          git clone --depth=1 https://github.com/tervsea/KPatch-Next.git kpatch_tool
+          cd kpatch_tool
+          bash patch.sh --dir .. --patch
+          cd ..
 
-      - name: Build Kernel (OnePlus 12R)
+      - name: Build Kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
