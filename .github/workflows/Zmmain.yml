@@ -19,18 +19,20 @@ jobs:
 
       - name: Integrate KernelSU-Next
         run: |
-          # अधिकृत सुधारेलेली लिंक वापरत आहोत
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
 
-      - name: Integrate KPatch-Next
+      - name: Integrate KPatch-Next (Manual Clone)
         run: |
-          curl -LSs "https://raw.githubusercontent.com/tervsea/KPatch-Next/main/patch.sh" | bash -s -- --dir . --patch
+          # लिंक फेल होत असल्यामुळे आपण थेट क्लोन करून पॅच करूया
+          git clone https://github.com/tervsea/KPatch-Next.git
+          cd KPatch-Next
+          bash patch.sh --dir .. --patch
+          cd ..
 
       - name: Build Kernel (OnePlus 12R)
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          # SM8550 (OnePlus 12R) साठी योग्य defconfig
           make O=out vendor/ace3_defconfig
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
