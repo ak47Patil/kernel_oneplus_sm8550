@@ -13,80 +13,56 @@ jobs:
     steps:
       - name: 📥 Checkout Source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 🛠 Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev python3 ccache zip aarch64-linux-gnu-gcc
+          sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev python3 ccache zip python3-pip
 
-      - name: ⚡ Setup Clang (PlaygroundTC)
+      - name: ⚡ Setup Clang (Proton)
         run: |
-          git clone --depth=1 https://gitlab.com/PixelOS-Devices/playgroundtc.git clang
-          echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang clang
+          echo "$(pwd)/clang/bin" >> $GITHUB_PATH
+
+      - name: 🧩 Integrate KernelSU
+        run: |
+          # This command automatically integrates KSU into your kernel source
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
 
       - name: 🔧 Patch Kernel Config (Kalama)
         run: |
-          # Kalama sathi config path check kara
           DEFCONFIG=arch/arm64/configs/vendor/kalama_defconfig
           
-          # LTO ani CFI band karne (Stability sathi garjeche)
-          sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
-          sed -i 's/CONFIG_CFI_CLANG=y/# CONFIG_CFI_CLANG is not set/g' $DEFCONFIG
-
-          # KSU ani KPatch sathi required flags
+          # Disable LTO/CFI to prevent build errors with Kprobes/KSU
+          sed -i 's/CONFIG_LTO_CLANG_FULL=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
+          sed -i 's/CONFIG_LTO_CLANG_THIN=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
+          
           {
             echo "CONFIG_KALLSYMS=y"
             echo "CONFIG_KALLSYMS_ALL=y"
-            echo "CONFIG_DEBUG_INFO=y"
             echo "CONFIG_KPROBES=y"
             echo "CONFIG_HAVE_KPROBES=y"
-            echo "CONFIG_LIVEPATCH=y"
+            echo "CONFIG_KPROBE_EVENTS=y"
+            echo "CONFIG_MODULES=y"
+            echo "CONFIG_OVERLAY_FS=y"
+            echo "CONFIG_KSU=y"
           } >> $DEFCONFIG
 
       - name: 🏗 Build Kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          export PATH="$(pwd)/clang/bin:$PATH"
           
-          # Make output directory
-          mkdir -p out
-
-          # Generate Config
-          make O=out vendor/kalama_defconfig
-          
-          # Start Compilation
+          # Use specialized make flags for modern kernels
           make -j$(nproc) O=out \
-               CC=clang \
-               LLVM=1 \
-               LLVM_IAS=1 \
-               CROSS_COMPILE=aarch64-linux-gnu- \
-               CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-               KCFLAGS="-O2 -w"
-
-      - name: 📦 Clone AnyKernel3
-        run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 ak3
-
-      - name: 📂 Copy Kernel Image
-        run: |
-          # Image file konti banli te check karun copy karel
-          if [ -f out/arch/arm64/boot/Image ]; then
-            cp out/arch/arm64/boot/Image ak3/
-          elif [ -f out/arch/arm64/boot/Image.gz ]; then
-            cp out/arch/arm64/boot/Image.gz ak3/
-          elif [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
-            cp out/arch/arm64/boot/Image.gz-dtb ak3/
-          fi
-
-      - name: 🗜 Create Flashable Zip
-        run: |
-          cd ak3
-          zip -r9 ../KSU-KPatch-Kernel.zip * -x .git*
-
-      - name: 📤 Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Kernel-Zip
-          path: KSU-KPatch-Kernel.zip
-          
+                      NM=llvm-nm \
+                      OBJCOPY=llvm-objcopy \
+                      OBJDUMP=llvm-objdump \
+                      STRIP=llvm-strip \
+                      CC=clang \
+                      CROSS_COMPILE=aarch64-linux-gnu- \
+                      CROSS
+                      
