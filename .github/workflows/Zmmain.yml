@@ -21,13 +21,16 @@ jobs:
         run: |
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
 
+      - name: Fix Missing Kconfig Paths
+        run: |
+          find . -name "Kconfig*" -type f -exec sed -i '/oplus_cpu\/thermal\/Kconfig/d' {} +
+          find . -name "Kconfig*" -type f -exec sed -i '/oplus_nfc\/Kconfig/d' {} +
+          find . -name "Kconfig*" -type f -exec sed -i '/oplus_touch\/Kconfig/d' {} +
+
       - name: Build Kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          
-          # Remove the problematic line from Kconfig before starting build
-          sed -i '/oplus_cpu\/thermal\/Kconfig/d' init/Kconfig
           
           make O=out vendor/kalama_defconfig
           
