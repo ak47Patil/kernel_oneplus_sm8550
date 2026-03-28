@@ -1,4 +1,4 @@
-name: Build KSU + KPatch Kernel (Kalama)
+name: Build KSU + KPatch Kernel
 
 on:
   push:
@@ -17,29 +17,23 @@ jobs:
       - name: 🛠 Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev python3 clang lld ccache zip python3-pip
+          sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev python3 ccache zip aarch64-linux-gnu-gcc
 
-      - name: ⚡ Setup Clang (AOSP Style)
+      - name: ⚡ Setup Clang (PlaygroundTC)
         run: |
-          mkdir -p clang
-          cd clang
-          # Akkha LLVM clone karnyapeksha prebuilt vapra, fast build hoil
-          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522819.tar.gz
-          tar -xf clang-r522819.tar.gz
-          echo "$PWD/bin" >> $GITHUB_PATH
-          cd ..
+          git clone --depth=1 https://gitlab.com/PixelOS-Devices/playgroundtc.git clang
+          echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
 
       - name: 🔧 Patch Kernel Config (Kalama)
         run: |
-          # Kalama sathi specific path check kara
+          # Kalama sathi config path check kara
           DEFCONFIG=arch/arm64/configs/vendor/kalama_defconfig
           
-          # LTO ani CFI band karne (KSU/KPatch sathi garjeche)
-          sed -i 's/CONFIG_LTO_CLANG_FULL=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
-          sed -i 's/CONFIG_LTO_CLANG_THIN=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
+          # LTO ani CFI band karne (Stability sathi garjeche)
+          sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
           sed -i 's/CONFIG_CFI_CLANG=y/# CONFIG_CFI_CLANG is not set/g' $DEFCONFIG
 
-          # KSU/KPatch Flags add karne
+          # KSU ani KPatch sathi required flags
           {
             echo "CONFIG_KALLSYMS=y"
             echo "CONFIG_KALLSYMS_ALL=y"
@@ -47,18 +41,21 @@ jobs:
             echo "CONFIG_KPROBES=y"
             echo "CONFIG_HAVE_KPROBES=y"
             echo "CONFIG_LIVEPATCH=y"
-            echo "CONFIG_KSU=y"
           } >> $DEFCONFIG
 
       - name: 🏗 Build Kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
           
-          # Out directory create karne
+          # Make output directory
+          mkdir -p out
+
+          # Generate Config
           make O=out vendor/kalama_defconfig
           
-          # Build process - Kalama sathi LLVM=1 vapra
+          # Start Compilation
           make -j$(nproc) O=out \
                CC=clang \
                LLVM=1 \
@@ -73,21 +70,23 @@ jobs:
 
       - name: 📂 Copy Kernel Image
         run: |
-          # Image file konti ahe te check karun copy karel
+          # Image file konti banli te check karun copy karel
           if [ -f out/arch/arm64/boot/Image ]; then
             cp out/arch/arm64/boot/Image ak3/
           elif [ -f out/arch/arm64/boot/Image.gz ]; then
             cp out/arch/arm64/boot/Image.gz ak3/
+          elif [ -f out/arch/arm64/boot/Image.gz-dtb ]; then
+            cp out/arch/arm64/boot/Image.gz-dtb ak3/
           fi
 
       - name: 🗜 Create Flashable Zip
         run: |
           cd ak3
-          zip -r9 ../KSU-KPatch-Kernel-Kalama.zip * -x .git*
+          zip -r9 ../KSU-KPatch-Kernel.zip * -x .git*
 
       - name: 📤 Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Kernel-Zip
-          path: KSU-KPatch-Kernel-Kalama.zip
+          path: KSU-KPatch-Kernel.zip
           
