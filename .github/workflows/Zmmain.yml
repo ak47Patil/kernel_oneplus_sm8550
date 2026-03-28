@@ -25,11 +25,11 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          make O=out vendor/kalama_defconfig
           
-          # Manually disable problematic thermal configs
-          scripts/config --file out/.config --disable CONFIG_OPLUS_FEATURE_THERMAL
-          scripts/config --file out/.config --disable CONFIG_OPLUS_CHIPSET_THERMAL
+          # Remove the problematic line from Kconfig before starting build
+          sed -i '/oplus_cpu\/thermal\/Kconfig/d' init/Kconfig
+          
+          make O=out vendor/kalama_defconfig
           
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
