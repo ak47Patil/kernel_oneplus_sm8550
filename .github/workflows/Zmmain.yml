@@ -26,12 +26,17 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           make O=out vendor/kalama_defconfig
+          
+          # Manually disable problematic thermal configs
+          scripts/config --file out/.config --disable CONFIG_OPLUS_FEATURE_THERMAL
+          scripts/config --file out/.config --disable CONFIG_OPLUS_CHIPSET_THERMAL
+          
           make -j$(nproc --all) O=out \
                       ARCH=arm64 \
                       CC=clang \
                       CLANG_TRIPLE=aarch64-linux-gnu- \
                       CROSS_COMPILE=aarch64-linux-android- \
-                      CROSS_COMPILE_ARM32=arm-linux-androideabi- || true
+                      CROSS_COMPILE_ARM32=arm-linux-androideabi-
 
       - name: Package with AnyKernel3
         run: |
