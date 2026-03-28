@@ -1,57 +1,77 @@
-name: Build OnePlus 12R Custom Kernel
+name: Build KSU + KPatch Safe Kernel (No Bootloop)
+
 on:
-  workflow_dispatch:
+push:
+branches:
+- "16.2"
+workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-        with:
-          ref: alpha-16.2
-          fetch-depth: 0
+build:
+runs-on: ubuntu-latest
 
-      - name: Setup Build Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc build-essential flex bison libssl-dev libelf-dev clang lld llvm python3 curl git zip wget
+steps:
+- name: 📥 Checkout Source
+  uses: actions/checkout@v4
 
-      - name: Integrate KernelSU-Next and Kpatch
-        run: |
-          curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+- name: 🛠 Install Dependencies
+  run: |
+    sudo apt update
+    sudo apt install -y git bc bison flex libssl-dev make libc6-dev \
+    libncurses5-dev python3 clang lld ccache zip
 
-      - name: Fix Missing Kconfig Paths
-        run: |
-          find . -name "Kconfig*" -type f -exec sed -i '/oplus_cpu\/thermal\/Kconfig/d' {} +
-          find . -name "Kconfig*" -type f -exec sed -i '/oplus_nfc\/Kconfig/d' {} +
-          find . -name "Kconfig*" -type f -exec sed -i '/oplus_touch\/Kconfig/d' {} +
+- name: ⚡ Setup Clang (Stable)
+  run: |
+    git clone --depth=1 https://github.com/llvm/llvm-project clang
+    echo "$PWD/clang/bin" >> $GITHUB_PATH
 
-      - name: Build Kernel
-        run: |
-          export ARCH=arm64
-          export SUBARCH=arm64
-          
-          make O=out vendor/kalama_defconfig
-          
-          make -j$(nproc --all) O=out \
-                      ARCH=arm64 \
-                      CC=clang \
-                      CLANG_TRIPLE=aarch64-linux-gnu- \
-                      CROSS_COMPILE=aarch64-linux-android- \
-                      CROSS_COMPILE_ARM32=arm-linux-androideabi-
+- name: 🔧 Patch Kernel Config (KPatch Friendly + KSU Safe)
+  run: |
+    DEFCONFIG=arch/arm64/configs/vendor/oneplus_defconfig
 
-      - name: Package with AnyKernel3
-        run: |
-          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git
-          find out/arch/arm64/boot/ -name "Image*" -exec cp {} AnyKernel3/ \;
-          cd AnyKernel3
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
-          zip -r9 ../OnePlus12R-AlphaDroid-Kernel.zip *
+    sed -i 's/CONFIG_LTO_CLANG=y/# CONFIG_LTO_CLANG is not set/g' $DEFCONFIG
+    sed -i 's/CONFIG_CFI_CLANG=y/# CONFIG_CFI_CLANG is not set/g' $DEFCONFIG
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: OnePlus12R-Kernel-Zip
-          path: OnePlus12R-AlphaDroid-Kernel.zip
-          
+    echo "CONFIG_KALLSYMS=y" >> $DEFCONFIG
+    echo "CONFIG_KALLSYMS_ALL=y" >> $DEFCONFIG
+    echo "CONFIG_DEBUG_INFO=y" >> $DEFCONFIG
+    echo "CONFIG_KPROBES=y" >> $DEFCONFIG
+    echo "CONFIG_HAVE_KPROBES=y" >> $DEFCONFIG
+    echo "CONFIG_LIVEPATCH=y" >> $DEFCONFIG
+
+- name: 🏗 Build Kernel
+  run: |
+    export ARCH=arm64
+    export SUBARCH=arm64
+
+    make O=out vendor/oneplus_defconfig
+
+    make -j$(nproc) O=out \
+    CC=clang \
+    LLVM=1 \
+    LLVM_IAS=1 \
+    KCFLAGS="-O2 -w"
+
+- name: 📦 Clone AnyKernel3
+  run: |
+    git clone https://github.com/osm0sis/AnyKernel3 ak3
+
+- name: ⚙️ Setup AnyKernel
+  run: |
+    cd ak3
+    sed -i 's/device.name1=.*/device.name1=OnePlus12R/g' anykernel.sh
+
+- name: 📂 Copy Kernel Image
+  run: |
+    cp out/arch/arm64/boot/Image ak3/
+
+- name: 🗜 Create Flashable Zip
+  run: |
+    cd ak3
+    zip -r9 ../KSU-KPatch-SAFE-Kernel.zip *
+
+- name: 📤 Upload Kernel Zip
+  uses: actions/upload-artifact@v4
+  with:
+    name: KSU-KPATCH-SAFE
+    path: KSU-KPatch-SAFE-Kernel.zip
