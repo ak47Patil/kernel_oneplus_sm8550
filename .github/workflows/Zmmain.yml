@@ -28,16 +28,18 @@ jobs:
 
       - name: 🧩 Integrate KernelSU
         run: |
-          # This command automatically integrates KSU into your kernel source
+          # This command automatically integrates KSU into your kernel source tree
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s main
 
-      - name: 🔧 Patch Kernel Config (Kalama)
+      - name: 🔧 Patch Kernel Config
         run: |
-          DEFCONFIG=arch/arm64/configs/vendor/kalama_defconfig
+          # Ensure this path matches your actual source tree
+          DEFCONFIG=arch/arm64/configs/vendor/oplus_defconfig
           
           # Disable LTO/CFI to prevent build errors with Kprobes/KSU
           sed -i 's/CONFIG_LTO_CLANG_FULL=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
           sed -i 's/CONFIG_LTO_CLANG_THIN=y/CONFIG_LTO_CLANG_NONE=y/g' $DEFCONFIG
+          sed -i 's/CONFIG_CFI_CLANG=y/# CONFIG_CFI_CLANG is not set/g' $DEFCONFIG
           
           {
             echo "CONFIG_KALLSYMS=y"
@@ -56,7 +58,7 @@ jobs:
           export SUBARCH=arm64
           export PATH="$(pwd)/clang/bin:$PATH"
           
-          # Use specialized make flags for modern kernels
+          # Use specialized make flags for modern kernels to ensure Clang is used for everything
           make -j$(nproc) O=out \
                       NM=llvm-nm \
                       OBJCOPY=llvm-objcopy \
@@ -64,5 +66,44 @@ jobs:
                       STRIP=llvm-strip \
                       CC=clang \
                       CROSS_COMPILE=aarch64-linux-gnu- \
-                      CROSS
-                      
+                      CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+                      LLVM=1 \
+                      LLVM_IAS=1 \
+                      oplus_defconfig
+
+          make -j$(nproc) O=out \
+                      NM=llvm-nm \
+                      OBJCOPY=llvm-objcopy \
+                      OBJDUMP=llvm-objdump \
+                      STRIP=llvm-strip \
+                      CC=clang \
+                      CROSS_COMPILE=aarch64-linux-gnu- \
+                      CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+                      LLVM=1 \
+                      LLVM_IAS=1 \
+                      KCFLAGS="-O2 -w"
+
+      - name: 📦 Prepare AnyKernel3
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3 ak3
+          rm -rf ak3/.git
+          # Move the built image to AK3 directory (checks multiple common locations)
+          for img in out/arch/arm64/boot/Image out/arch/arm64/boot/Image.gz out/arch/arm64/boot/Image.gz-dtb; do
+            if [ -f "$img" ]; then
+              cp "$img" ak3/
+              echo "Found kernel image at $img"
+              break
+            fi
+          done
+
+      - name: 🗜 Create Flashable Zip
+        run: |
+          cd ak3
+          zip -r9 ../KSU-KPatch-Kernel.zip *
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kernel-Zip
+          path: KSU-KPatch-Kernel.zip
+          
